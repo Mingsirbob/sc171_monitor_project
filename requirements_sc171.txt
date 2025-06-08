@@ -1,0 +1,5 @@
+# SC171平台依赖
+numpy
+opencv-python
+requests
+# 其他依赖请按需添加
