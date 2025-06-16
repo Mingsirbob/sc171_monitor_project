@@ -44,8 +44,8 @@ YOLO_MODEL_OUTPUT_NAMES = ["output0"] # <--- 替换为你的DLC实际输出名(�
 YOLO_MODEL_OUTPUT_EXPECTED_SHAPE = (1, 84, 8400) # <--- 根据你的DLC确认或修改
 
 # --- YOLOv8 后处理参数 ---
-YOLO_CONF_THRESHOLD = 0.30  # 检测结果的置信度阈值 (可调整)
-YOLO_IOU_THRESHOLD = 0.45   # NMS (非极大值抑制) 的IOU阈值 (可调整)
+YOLO_CONF_THRESHOLD = 0.5  # 检测结果的置信度阈值 (可调整)
+YOLO_IOU_THRESHOLD = 0.5   # NMS (非极大值抑制) 的IOU阈值 (可调整)
 
 # COCO类别名称列表 (确保与你的yolov8n模型训练时使用的类别一致)
 COCO_CLASSES = [
@@ -89,7 +89,7 @@ DESIRED_FPS = 20.0
 # SERVER_AUTH_TOKEN = os.getenv("YOUR_SERVER_AUTH_TOKEN") # 如果服务器需要认证
 
 # --- 视频缓存配置 ---
-VIDEO_CACHE_DURATION_MINUTES = 15 # 视频片段缓存时长 (分钟)
+VIDEO_CACHE_DURATION_MINUTES = 0.25 # 视频片段缓存时长 (分钟)
 
 # --- 事件处理与推送配置 ---
 # TRIGGER_CLASSES_FOR_GEMINI = ["fire", "person"] # 哪些YOLO类别触发Gemini

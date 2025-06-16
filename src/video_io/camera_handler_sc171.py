@@ -5,7 +5,7 @@ import os
 import numpy as np # 确保导入numpy
 from typing import Tuple, Union, Optional # <--- 导入 typing 中的类型
 
-# ... (尝试导入config_sc171的代码保持不变) ...
+# ... (尝试导入config_sc171的代码) ...
 try:
     from config_sc171 import SC171_CAMERA_SOURCE, DESIRED_FPS
 except ImportError:
@@ -16,7 +16,6 @@ except ImportError:
 
 class CameraHandlerSC171:
     def __init__(self, camera_source=None, desired_width=None, desired_height=None, desired_fps=None):
-        # ... (构造函数内容保持不变) ...
         self.camera_source = camera_source if camera_source is not None else SC171_CAMERA_SOURCE
         self.desired_width = desired_width
         self.desired_height = desired_height
@@ -30,7 +29,7 @@ class CameraHandlerSC171:
 
 
     def open(self) -> bool:
-        # ... (open方法内容保持不变) ...
+        # ... (open方法内容) ...
         if self.is_opened:
             print("CameraHandlerSC171: 摄像头已打开。")
             return True
