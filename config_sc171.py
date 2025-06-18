@@ -44,8 +44,8 @@ YOLO_MODEL_OUTPUT_NAMES = ["output0"] # <--- 替换为你的DLC实际输出名(�
 YOLO_MODEL_OUTPUT_EXPECTED_SHAPE = (1, 84, 8400) # <--- 根据你的DLC确认或修改
 
 # --- YOLOv8 后处理参数 ---
-YOLO_CONF_THRESHOLD = 0.5  # 检测结果的置信度阈值 (可调整)
-YOLO_IOU_THRESHOLD = 0.5   # NMS (非极大值抑制) 的IOU阈值 (可调整)
+YOLO_CONF_THRESHOLD = 0.7  # 检测结果的置信度阈值 (可调整)
+YOLO_IOU_THRESHOLD = 0.7   # NMS (非极大值抑制) 的IOU阈值 (可调整)
 
 # COCO类别名称列表 (确保与你的yolov8n模型训练时使用的类别一致)
 COCO_CLASSES = [
