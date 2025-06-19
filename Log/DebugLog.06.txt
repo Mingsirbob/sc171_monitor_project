@@ -1,2 +1,0 @@
-Logging started for program DebugLog on host qcs6490-odk at Mon Jun 09 2025 14:47:50.895910 (this log file is /home/fibo/sc171_monitor_project/Log/DebugLog.06.txt)
-Logging stopped at Mon Jun 09 2025 14:48:17.975277

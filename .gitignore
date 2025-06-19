@@ -7,3 +7,5 @@ __pycache__/
 logs/
 models/*.dlc
 video_cache/
+Log/
+data/

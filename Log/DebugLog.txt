@@ -1,1 +1,0 @@
-/home/fibo/sc171_monitor_project/Log/DebugLog.09.txt
