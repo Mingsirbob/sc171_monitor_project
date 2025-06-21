@@ -165,7 +165,7 @@ class GeminiAnalyzerCloud:
 
 # --- 模块级测试代码  ---
 if __name__ == '__main__':
-    print("--- GeminiAnalyzerCloud 模块测试 (使用OpenAI库和Pydantic结构化输出 - 简化版) ---")
+    print("--- GeminiAnalyzerCloud 模块测试 (使用OpenAI库和Pydantic结构化输出) ---")
     if not GEMINI_API_KEY or GEMINI_API_KEY == "YOUR_GEMINI_API_KEY_FALLBACK":
         print("错误：GEMINI_API_KEY未配置。测试中止。")
     else:

@@ -2,221 +2,189 @@
 import cv2
 import time
 import os
-import uuid 
 from datetime import datetime, timezone
 
-# --- 1. 导入配置和自定义模块 ---
+# --- 1. 导入 ---
 try:
-    import config_sc171 as cfg
+    import config_sc171 as cfg # 用于应用级配置
+    # YoloDetectorSC171 内部会处理其模型相关的配置
+    from src.ai_processing.yolo_detector_sc171 import YoloDetectorSC171
     from src.video_io.camera_handler_sc171 import CameraHandlerSC171
     from src.video_io.video_buffer_sc171 import VideoBufferSC171
-    from src.ai_processing.yolo_detector_sc171 import YoloDetectorSC171
-    # 导入 GeminiAnalyzerCloud 和新的 Pydantic 模型 (如果 Event 模型需要它)
-    from src.ai_processing.gemini_analyzer_cloud import GeminiAnalyzerCloud, GeminiAnalysisResult 
-    # 导入 Event 和 SimplifiedDetectedObject
-    from src.data_management.event_models_shared import Event, SimplifiedDetectedObject 
+    from src.ai_processing.gemini_analyzer_cloud import GeminiAnalyzerCloud, GeminiAnalysisResult
+    from src.data_management.event_models_shared import Event, SimplifiedDetectedObject
     from src.data_management.event_logger_local import EventLoggerLocal
-    from src.ai_processing.yolo_v8_image_utils import draw_detections_on_image, COCO_CLASSES as class_names_from_util
-    from src.ai_processing.api_infer_wrapper import Runtime 
-
+    # draw_detections_on_image 现在由 YoloDetectorSC171.draw_results 内部调用
+    from src.ai_processing.api_infer_wrapper import Runtime # YoloDetectorSC171内部可能用到
 except ImportError as e:
-    print(f"关键导入错误: {e}") 
+    print(f"关键导入错误: {e}")
     exit()
 
-# --- 全局控制参数 (与之前类似) ---
-SAVE_RESULT_FRAMES = True
-SAVE_FRAME_INTERVAL = 90 
-FRAMES_OUTPUT_DIR = os.path.join(cfg.DATA_DIR, "main_output_frames_v2.4_gemini_struct") # 更新版本号
-SNAPSHOTS_DIR = os.path.join(cfg.DATA_DIR, "event_snapshots")
+# --- 2. 全局应用级配置读取 ---
+SAVE_DEBUG_FRAMES = getattr(cfg, 'SAVE_RESULT_FRAMES', False)
+SAVE_FRAME_INTERVAL = getattr(cfg, 'SAVE_FRAME_INTERVAL', 300)
+DEBUG_FRAMES_DIR = os.path.join(cfg.DATA_DIR, "main_output_frames_v2.5_new_yolo") # 更新版本
+EVENT_SNAPSHOTS_DIR = os.path.join(cfg.DATA_DIR, "event_snapshots")
 
-TRIGGER_CLASSES_FOR_GEMINI = getattr(cfg, 'TRIGGER_CLASSES_FOR_GEMINI', ["person", "fire"])
-MIN_CONFIDENCE_FOR_GEMINI_TRIGGER = getattr(cfg, 'MIN_CONFIDENCE_FOR_GEMINI_TRIGGER', 0.65)
-GEMINI_COOLDOWN_SECONDS = getattr(cfg, 'GEMINI_COOLDOWN_SECONDS', 30)
+TRIGGER_CLASSES = getattr(cfg, 'TRIGGER_CLASSES_FOR_GEMINI', ["person"]) # 保持不变
+# MIN_CONFIDENCE_FOR_GEMINI_TRIGGER 现在由 YoloDetectorSC171 内部的 CONF_THRESHOLD 控制
+GEMINI_COOLDOWN = getattr(cfg, 'GEMINI_COOLDOWN_SECONDS', 30)
 
-def main():
-    print("--- SC171监控智能识别项目 - 主程序启动 (V2.4 - 集成结构化Gemini输出) ---")
+def initialize_modules(config_module):
+    print("\n[模块初始化阶段]")
+    camera = CameraHandlerSC171(camera_source=config_module.SC171_CAMERA_SOURCE, desired_fps=config_module.DESIRED_FPS)
+    if not camera.open(): print("错误：摄像头打开失败。"); return None, None, None, None, None, None
+    cam_w, cam_h = camera.get_resolution(); cam_fps = camera.get_fps()
+    if not cam_w or not cam_h or cam_fps <= 0: print("错误：未能从摄像头获取有效参数。"); camera.close(); return None, None, None, None, None, None
+    print(f"  摄像头: {cam_w}x{cam_h} @ {cam_fps:.2f} FPS")
+
+    # YoloDetectorSC171 现在从其模块内部获取配置
+    yolo = YoloDetectorSC171()
+    if not hasattr(yolo, 'snpe_ort') or yolo.snpe_ort is None : # 简单检查是否初始化成功
+        print("错误：YOLO检测器初始化失败。")
+        camera.close(); return None, None, None, None, None, None
+    print("  YOLO检测器: 初始化成功")
+
+    gemini = GeminiAnalyzerCloud() # 不变
+    if not gemini.is_initialized: print("警告：Gemini分析器初始化失败。")
+    else: print("  Gemini分析器: 初始化成功")
+
+    logger = EventLoggerLocal(log_directory=config_module.LOG_DIR) # 不变
+    if logger.log_directory is None: print("警告：本地事件记录器目录无效。")
+    else: print(f"  本地事件记录器: 日志目录 '{logger.log_directory}'")
     
-    if SAVE_RESULT_FRAMES: os.makedirs(FRAMES_OUTPUT_DIR, exist_ok=True)
-    os.makedirs(SNAPSHOTS_DIR, exist_ok=True)
-    # ... (其他初始化打印和目录创建与之前类似) ...
-
-    print("\n[初始化摄像头模块...]")
-    camera = CameraHandlerSC171(camera_source=cfg.SC171_CAMERA_SOURCE, desired_fps=cfg.DESIRED_FPS)
-    # ... (摄像头初始化和参数获取与之前类似) ...
-    if not camera.open(): return
-    actual_cam_w, actual_cam_h = camera.get_resolution()
-    actual_cam_fps = camera.get_fps()
-    if not actual_cam_w or not actual_cam_h or actual_cam_fps <= 0: camera.close(); return
-    print(f"摄像头实际参数: {actual_cam_w}x{actual_cam_h} @ {actual_cam_fps:.2f} FPS")
-
-
-    print("\n[初始化YOLO检测器模块 (GPU模式)...]")
-    yolo_detector = YoloDetectorSC171(runtime_target=Runtime.GPU)
-    # ... (YOLO初始化与之前类似) ...
-    if not yolo_detector.model_loaded: camera.close(); return
-
-
-    print("\n[初始化Gemini分析器模块...]")
-    gemini_analyzer = GeminiAnalyzerCloud() # 初始化不变
-    if not gemini_analyzer.is_initialized: print("警告：Gemini分析器初始化失败。云分析功能将不可用。")
-
-
-    print("\n[初始化本地事件记录器模块...]")
-    event_logger = EventLoggerLocal(log_directory=cfg.LOG_DIR) # 初始化不变
-    if event_logger.log_directory is None: print("警告：本地事件记录器未能正确初始化日志目录。")
-
-
-    print("\n[初始化视频缓冲模块...]") # ... (VideoBuffer初始化不变) ...
-    cam_id_str_for_buffer_and_event = f"cam_{cfg.SC171_CAMERA_SOURCE}" if isinstance(cfg.SC171_CAMERA_SOURCE, int) else str(cfg.SC171_CAMERA_SOURCE).replace('/','_').replace('\\','_')
-    video_buffer = VideoBufferSC171(
-        camera_id=cam_id_str_for_buffer_and_event, cache_duration_seconds=cfg.VIDEO_CACHE_DURATION_MINUTES * 60,
-        output_directory_root=cfg.VIDEO_CACHE_DIR, fps=actual_cam_fps, 
-        frame_width=actual_cam_w, frame_height=actual_cam_h
+    cam_id_str = f"cam_{config_module.SC171_CAMERA_SOURCE}".replace('/','_').replace('\\','_')
+    buffer = VideoBufferSC171( # 不变
+        camera_id=cam_id_str, cache_duration_seconds=config_module.VIDEO_CACHE_DURATION_MINUTES * 60,
+        output_directory_root=config_module.VIDEO_CACHE_DIR, fps=cam_fps,
+        frame_width=cam_w, frame_height=cam_h
     )
-    if not video_buffer.current_video_writer: camera.close(); yolo_detector.close(); return
+    if not buffer.current_video_writer:
+        print("错误：视频缓冲器未能初始化写入器。")
+        camera.close(); yolo.close(); return None, None, None, None, None, None
+    print(f"  视频缓冲器 (cam_id: {cam_id_str}): 初始化成功")
+    
+    return camera, yolo, gemini, logger, buffer, cam_id_str
 
+def process_frame_logic(frame_bgr, yolo_detector, gemini_analyzer, event_logger, video_buffer, cam_id, frame_num, last_gemini_time):
+    current_time = time.time()
+    event_this_frame = None
+    debug_frame_save_path = None # 用于返回保存的调试帧路径
 
-    print("\n--- 所有核心模块初始化完成，开始主循环 ---")
-    frame_counter = 0
-    last_gemini_trigger_time = 0.0
+    completed_video_path = video_buffer.add_frame(frame_bgr.copy()) # 不变
+    if completed_video_path:
+        print(f"信息: 视频片段 '{os.path.basename(completed_video_path)}' 已保存。")
 
+    # 1. YOLO检测 (现在 detect 不返回值)
+    yolo_detector.detect(frame_bgr) 
+    
+    # 2. 使用 save_results 获取关心的对象信息，并判断是否触发Gemini
+    # TRIGGER_CLASSES 是全局的，YoloDetectorSC171内部的 CONF_THRESHOLD 会做第一轮过滤
+    # save_results 的 find_object 参数期望是一个列表的列表，例如 [["person", "fire"]]
+    triggering_objects_text_list = yolo_detector.save_results([TRIGGER_CLASSES])
+    
+    trigger_gemini = bool(triggering_objects_text_list) # 如果列表不为空，则触发
+    yolo_summary_for_prompt = "; ".join(triggering_objects_text_list) if triggering_objects_text_list else "未检测到明确触发对象"
+
+    # 将 yolo_detector.final_detections (原始的、按类别组织的) 转换为 SimplifiedDetectedObject 列表
+    yolo_objects_for_event_creation = []
+    if hasattr(yolo_detector, 'final_detections') and yolo_detector.final_detections:
+        for class_id, boxes_in_class in enumerate(yolo_detector.final_detections):
+            if len(boxes_in_class) > 0:
+                class_name = yolo_detector.class_names[class_id] # 使用检测器内部的类别名
+                for box in boxes_in_class: # box 是 [x,y,w,h,conf]
+                    # 只有通过了YOLO内部CONF_THRESHOLD的才会在这里
+                    s_obj = SimplifiedDetectedObject(class_name=class_name, confidence=box[4])
+                    yolo_objects_for_event_creation.append(s_obj)
+    
+    if trigger_gemini and (current_time - last_gemini_time > GEMINI_COOLDOWN) and gemini_analyzer.is_initialized:
+        print(f"信息: 帧 {frame_num} - 触发Gemini分析 (基于: {yolo_summary_for_prompt})")
+        last_gemini_time = current_time
+        
+        snapshot_file = None # ... (快照保存逻辑不变) ...
+        try:
+            snap_fname = f"snap_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}.jpg"; snap_fpath = os.path.join(EVENT_SNAPSHOTS_DIR, snap_fname)
+            if cv2.imwrite(snap_fpath, frame_bgr): snapshot_file = snap_fpath
+        except Exception as e_snap: print(f"错误: 保存快照失败: {e_snap}")
+
+        prompt = (f"场景分析。YOLO初步判断: [{yolo_summary_for_prompt}]. " # 使用新的summary
+                  "请严格按JSON格式返回风险评估('risk_level'), 描述('description'), "
+                  "及特定事件('specific_events_detected': {'fire':{'detected':bool,...}, ...}).")
+        
+        gemini_data = gemini_analyzer.analyze_image(frame_bgr, yolo_summary_for_prompt)
+
+        event_this_frame = Event(
+            camera_id=cam_id,
+            detected_yolo_objects=yolo_objects_for_event_creation, # 使用转换后的列表
+            triggering_image_snapshot_path=snapshot_file,
+            gemini_analysis=gemini_data
+        )
+        
+        if gemini_data: print(f"  Gemini风险: {gemini_data.risk_level}")
+        else: print("  Gemini分析失败或无有效结果。")
+
+        if event_logger.log_directory:
+            if event_logger.log_event(event_this_frame):
+                print(f"  事件 {event_this_frame.event_id} 已记录。")
+    
+    # 调试帧保存 (现在调用YoloDetectorSC171的draw_results)
+    if SAVE_DEBUG_FRAMES and (frame_num % SAVE_FRAME_INTERVAL == 0):
+        if hasattr(yolo_detector, 'final_detections') and yolo_detector.final_detections: # 确保有检测结果才绘制
+            ts_str = time.strftime("%Y%m%d_%H%M%S")
+            debug_frame_save_path = os.path.join(DEBUG_FRAMES_DIR, f"debug_{ts_str}_{frame_num}.jpg")
+            try:
+                # yolo_detector.draw_results 现在负责绘制和保存
+                # 它内部会使用 self.image (原始帧) 和 self.final_detections
+                # 我们需要确保 self.image 是在 detect() 中被正确设置的原始帧
+                yolo_detector.draw_results(save_path=debug_frame_save_path) 
+                # 如果要在上面再绘制Gemini信息，需要先获取绘制了YOLO结果的图，再绘制，再保存
+                # 或者修改YoloDetectorSC171.draw_results使其能接收额外的文本来绘制
+                print(f"调试帧已保存到: {debug_frame_save_path}")
+            except Exception as e: print(f"错误: 保存调试帧失败: {e}")
+
+    return event_this_frame, last_gemini_time # 返回是否有事件创建，以及更新的冷却时间
+
+def main_loop(camera, yolo, gemini, logger, buffer, cam_id):
+    frame_num = 0
+    last_gemini_call_time = 0.0
+    
+    while True:
+        ret, frame = camera.read_frame()
+        if not ret or frame is None: break
+        frame_num += 1
+        
+        # 注意：process_frame_logic 现在返回 event_this_frame 和 last_gemini_call_time
+        _, last_gemini_call_time = process_frame_logic( # 我们不直接用这里的event_this_frame做主要判断
+            frame, yolo, gemini, logger, buffer, cam_id, frame_num, last_gemini_call_time
+        )
+        
+        # print(f"Processed frame {frame_num}")
+        # 通过某种方式退出 (例如，特定数量的帧后用于测试，或Ctrl+C)
+        # if frame_num > 10: break # 短暂测试
+
+def cleanup_modules(camera, yolo, buffer): # 不变
+    print("\n[资源清理阶段]")
+    if buffer and hasattr(buffer, 'current_video_writer') and buffer.current_video_writer: buffer.close(); print("  视频缓冲器: 已关闭")
+    if yolo and hasattr(yolo, 'snpe_ort'): yolo.close(); print("  YOLO检测器: 已关闭") # 检查snpe_ort是否存在
+    if camera and hasattr(camera, 'is_opened') and camera.is_opened: camera.close(); print("  摄像头: 已关闭")
+
+def run_application(): # 不变
+    print("--- SC171监控应用启动 (简化版 V2.5 - 新YOLO Detector) ---")
+    if hasattr(cfg, 'ensure_project_directories_exist'): cfg.ensure_project_directories_exist()
+    if hasattr(cfg, 'VIDEO_CACHE_DIR'): os.makedirs(cfg.VIDEO_CACHE_DIR, exist_ok=True)
+    if SAVE_DEBUG_FRAMES: os.makedirs(DEBUG_FRAMES_DIR, exist_ok=True)
+    os.makedirs(EVENT_SNAPSHOTS_DIR, exist_ok=True)
+
+    modules = initialize_modules(cfg)
+    if modules[0] is None: print("核心模块初始化失败，程序无法启动。"); return
+    camera, yolo, gemini, logger, video_buffer, cam_id_str = modules
     try:
-        while True:
-            ret, frame_bgr = camera.read_frame()
-            if not ret or frame_bgr is None: break
-            # ... (帧尺寸检查与resize不变) ...
-            if frame_bgr.shape[1] != actual_cam_w or frame_bgr.shape[0] != actual_cam_h:
-                try: frame_bgr = cv2.resize(frame_bgr, (actual_cam_w, actual_cam_h))
-                except Exception as e_resize_main: print(f"错误: resize帧失败: {e_resize_main}"); continue
-            
-            frame_counter += 1
-            current_process_time_start = time.perf_counter()
-
-            completed_segment_path = video_buffer.add_frame(frame_bgr.copy())
-            if completed_segment_path: # ... (视频片段保存打印不变) ...
-                print(f"\n========= 视频片段已完成并保存: {os.path.basename(completed_segment_path)} =========")
-                print(f"  完整路径: {completed_segment_path}")
-                print("=======================================================================\n")
-
-            yolo_detections = yolo_detector.detect(frame_bgr)
-            
-            trigger_gemini_now = False
-            yolo_objects_for_event_creation = [] # 用于创建Event对象的SimplifiedDetectedObject列表
-            triggering_yolo_objects_summary_for_prompt = [] # 用于构建Gemini Prompt的字符串列表
-            
-            if yolo_detections:
-                for det in yolo_detections:
-                    try:
-                        simplified_obj = SimplifiedDetectedObject(
-                            class_name=det['class_name'], confidence=det['confidence']
-                        )
-                        yolo_objects_for_event_creation.append(simplified_obj)
-                        if det['class_name'] in TRIGGER_CLASSES_FOR_GEMINI and \
-                           det['confidence'] >= MIN_CONFIDENCE_FOR_GEMINI_TRIGGER:
-                            trigger_gemini_now = True
-                            triggering_yolo_objects_summary_for_prompt.append(f"{det['class_name']} (conf: {det['confidence']:.2f})")
-                    except KeyError as ke: print(f"警告: YOLO字典键错误: {ke} - {det}")
-                    except Exception as e_obj: print(f"警告: 处理YOLO对象时出错: {e_obj} - {det}")
-
-            current_timestamp_for_logic = time.time()
-            event_instance_this_frame: Optional[Event] = None # 初始化为None
-
-            if trigger_gemini_now and \
-               (current_timestamp_for_logic - last_gemini_trigger_time > GEMINI_COOLDOWN_SECONDS) and \
-               gemini_analyzer.is_initialized:
-                
-                print(f"\n帧 {frame_counter}: **触发Gemini分析** (检测到: {', '.join(triggering_yolo_objects_summary_for_prompt)})")
-                last_gemini_trigger_time = current_timestamp_for_logic
-
-                snapshot_path = None # 初始化快照路径
-                snapshot_saved_successfully = False
-                # ... (快照保存逻辑不变) ...
-                snapshot_filename = f"snapshot_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')}.jpg"
-                temp_snapshot_path = os.path.join(SNAPSHOTS_DIR, snapshot_filename)
-                try:
-                    if cv2.imwrite(temp_snapshot_path, frame_bgr): 
-                        snapshot_path = temp_snapshot_path # 只有成功才赋值
-                        snapshot_saved_successfully = True
-                        # print(f"  图像快照已保存到: {snapshot_path}")
-                    else: print(f"  错误：保存快照到 {temp_snapshot_path} 失败。")
-                except Exception as e_snap: print(f"  错误：保存快照时异常: {e_snap}")
-                
-                # 调用Gemini分析，现在期望返回 GeminiAnalysisResult 对象或 None
-                gemini_analysis_data: Optional[GeminiAnalysisResult] = gemini_analyzer.analyze_image(
-                    frame_bgr, 
-                    yolo_objects_summary=", ".join(triggering_yolo_objects_summary_for_prompt) # 传递YOLO摘要
-                )
-                # gemini_api_call_ts_for_event = datetime.now(timezone.utc).isoformat() # 这个可以移到Event内部或不单独记录
-
-                event_instance_this_frame = Event(
-                    camera_id=cam_id_str_for_buffer_and_event,
-                    detected_yolo_objects=yolo_objects_for_event_creation, # 包含当前帧所有简化的YOLO检测
-                    triggering_image_snapshot_path=snapshot_path, # 使用已确定的快照路径
-                    
-                    # --- 将GeminiAnalysisResult对象直接赋给Event的新字段 ---
-                    gemini_analysis=gemini_analysis_data 
-                    # 之前分散的 gemini_risk_level, gemini_description 等字段已移入 Event.gemini_analysis
-                )
-                
-                if gemini_analysis_data:
-                    print(f"  Gemini分析完成 - 总体风险: {gemini_analysis_data.risk_level}")
-                    print(f"    火灾: {gemini_analysis_data.specific_events_detected.fire.detected} "
-                          f"(详情: {gemini_analysis_data.specific_events_detected.fire.details or 'N/A'})")
-                    # 可以打印其他特定事件
-                else:
-                    print(f"  Gemini分析失败或未返回有效结构。Event对象中的gemini_analysis将为None。")
-                
-                print(f"  新事件已创建: ID {event_instance_this_frame.event_id}")
-                
-                if event_logger.log_directory:
-                    if event_logger.log_event(event_instance_this_frame): # log_event现在会调用新的to_custom_dict
-                        print(f"  事件 {event_instance_this_frame.event_id} 已成功记录到本地日志。")
-                    # ... (日志记录失败的打印)
-
-            # ... (单帧耗时打印逻辑与之前类似，可根据event_instance_this_frame调整) ...
-            current_process_time_end = time.perf_counter(); total_frame_processing_time_ms = (current_process_time_end - current_process_time_start) * 1000
-            if event_instance_this_frame and event_instance_this_frame.gemini_analysis: print(f"帧 {frame_counter}: Gemini分析完成 (总耗时含Gemini: {total_frame_processing_time_ms:.2f} ms)")
-            elif yolo_detections: print(f"帧 {frame_counter}: YOLO检测到 {len(yolo_detections)} 个对象 (总耗时: {total_frame_processing_time_ms:.2f} ms)")
-            else: print(f"帧 {frame_counter}: 未检测到对象 (总耗时: {total_frame_processing_time_ms:.2f} ms)")
-
-
-            # --- 可视化与保存结果帧 ---
-            display_frame = frame_bgr.copy()
-            if yolo_detections: # ... (绘制YOLO检测框不变) ...
-                class_names_to_use = cfg.COCO_CLASSES if hasattr(cfg, 'COCO_CLASSES') else class_names_from_util
-                display_frame = draw_detections_on_image(display_frame, yolo_detections, class_names_to_use)
-            
-            # 从Event对象中获取Gemini风险信息来绘制
-            if event_instance_this_frame and event_instance_this_frame.gemini_analysis:
-                 risk_to_display = event_instance_this_frame.gemini_analysis.risk_level
-                 cv2.putText(display_frame, f"Gemini Risk: {risk_to_display}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-                 # 可以再绘制特定事件的检测状态
-                 fire_detected = event_instance_this_frame.gemini_analysis.specific_events_detected.fire.detected
-                 fire_status_text = f"Fire: {'Yes' if fire_detected else 'No'}"
-                 cv2.putText(display_frame, fire_status_text, (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255) if fire_detected else (0,100,0), 2)
-
-
-            if SAVE_RESULT_FRAMES and (frame_counter % SAVE_FRAME_INTERVAL == 0): # ... (保存结果帧不变) ...
-                timestamp_str = time.strftime("%Y%m%d_%H%M%S"); save_path = os.path.join(FRAMES_OUTPUT_DIR, f"output_frame_{timestamp_str}_{frame_counter}.jpg")
-                try: cv2.imwrite(save_path, display_frame)
-                except Exception as e_save: print(f"保存结果帧失败: {e_save}")
-            
-    except KeyboardInterrupt: # ...
-        print("\n用户通过Ctrl+C请求中断程序...")
-    except Exception as e: # ...
-        print(f"\n主循环中发生未捕获的异常: {e}")
-        import traceback; traceback.print_exc()
-    finally: # ... (资源释放不变) ...
-        print("\n开始清理和释放资源...")
-        if 'video_buffer' in locals() and hasattr(video_buffer, 'current_video_writer') and video_buffer.current_video_writer: video_buffer.close(); print("视频缓冲区已关闭。")
-        if 'yolo_detector' in locals() and hasattr(yolo_detector, 'model_loaded') and yolo_detector.model_loaded: yolo_detector.close()
-        if 'camera' in locals() and hasattr(camera, 'is_opened') and camera.is_opened: camera.close()
-        print("--- SC171监控智能识别项目 - 主程序结束 ---")
+        main_loop(camera, yolo, gemini, logger, video_buffer, cam_id_str)
+    except KeyboardInterrupt: print("\n用户请求中断程序...")
+    except Exception as e: print(f"\n主程序发生未捕获的严重异常: {e}"); import traceback; traceback.print_exc()
+    finally: cleanup_modules(camera, yolo, video_buffer)
+    print("--- SC171监控应用结束 ---")
 
 if __name__ == '__main__':
-    if not os.getenv("FIBO_LIB"): # ...
-        pass
-    if hasattr(cfg, 'ensure_directories_exist'): # ...
-        cfg.ensure_directories_exist()
-        if hasattr(cfg, 'VIDEO_CACHE_DIR'): os.makedirs(cfg.VIDEO_CACHE_DIR, exist_ok=True); print(f"视频缓存根目录 '{cfg.VIDEO_CACHE_DIR}' 已确保存在。")
-    main()
+    if not os.getenv("FIBO_LIB"):print("警告：FIBO_LIB环境变量未设置。")
+    run_application()

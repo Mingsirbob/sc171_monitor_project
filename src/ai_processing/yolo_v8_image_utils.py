@@ -9,20 +9,10 @@ def preprocess_img(img, target_shape: tuple):
     return img_processed[None, :]
 
 
-def draw_detect_res(img, all_boxes):
+def draw_detect_res(img, all_boxes,class_names):
     final_box_count = sum(len(b) for b in all_boxes)
     print(f"\n--- 绘制 {final_box_count} 个最终检测框 ---")
-    COCO_CLASSES = [
-        'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat', 'traffic light',
-        'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep', 'cow',
-        'elephant', 'bear', 'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee',
-        'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove', 'skateboard', 'surfboard',
-        'tennis racket', 'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple',
-        'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch',
-        'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone',
-        'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear',
-        'hair drier', 'toothbrush'
-        ]
+    
     colors = [(255, 56, 56), (56, 255, 56), (56, 56, 255), (255, 157, 151), 
               (255, 112, 31), (72, 249, 10), (61, 219, 134), (0, 194, 255)]
 
@@ -31,7 +21,7 @@ def draw_detect_res(img, all_boxes):
     for class_id, boxes in enumerate(all_boxes):
         if len(boxes) == 0:
             continue
-        class_name = COCO_CLASSES[class_id]
+        class_name = class_names[class_id]
         for box in boxes:
             x, y, w, h, conf = [int(t) for t in box[:4]] + [box[4]]
             print(f"检测到: {class_name:<12} | 置信度: {conf:.2f} | 边框 (x,y,w,h): ({x}, {y}, {w}, {h})")

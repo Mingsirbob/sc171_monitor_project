@@ -2,24 +2,6 @@
 import numpy as np
 from typing import List, Dict, Any, Tuple 
 
-# 尝试从config导入配置，如果失败则使用后备值
-try:
-    from config_sc171 import COCO_CLASSES # YOLO_CONF_THRESHOLD, YOLO_IOU_THRESHOLD 会作为参数传入
-except ImportError:
-    print("警告 [yolo_v8_snpe_postprocessor]: 无法从config_sc171导入COCO_CLASSES。")
-    print("将使用本模块内定义的默认COCO_CLASSES列表进行测试。")
-    COCO_CLASSES = [
-        'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat', 'traffic light',
-        'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep', 'cow',
-        'elephant', 'bear', 'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee',
-        'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove', 'skateboard', 'surfboard',
-        'tennis racket', 'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple',
-        'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch',
-        'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone',
-        'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear',
-        'hair drier', 'toothbrush'
-    ]
-
 def xywh2xyxy(x):
     y = np.copy(x)
     y[:, 0] = x[:, 0] - x[:, 2] / 2
@@ -67,8 +49,10 @@ def NMS(dets, thresh):
     return dets[keep]
 
 
-def detect_postprocess(prediction, original_shape, model_shape, conf_thres, iou_thres):
-    num_classes = len(COCO_CLASSES)
+def detect_postprocess(class_names, prediction, original_shape, model_shape, conf_thres, iou_thres):
+    num_classes = len(class_names)
+    print(f"检测类别数量: {num_classes}")
+    
     print(f"原始模型输出形状: {prediction.shape}")
 
     num_properties = num_classes + 4
@@ -101,7 +85,7 @@ def detect_postprocess(prediction, original_shape, model_shape, conf_thres, iou_
     final_results = []
     for i in range(num_classes):
         cls_mask = (class_ids_filtered == i)
-        # print(f"类别 {i} ({COCO_CLASSES[i]}): 检测到 {cls_mask} 个边界框")
+        # print(f"类别 {i} ({class_names[i]}): 检测到 {cls_mask} 个边界框")
         if not np.any(cls_mask):
             final_results.append([])
             continue
