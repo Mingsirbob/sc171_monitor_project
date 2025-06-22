@@ -23,7 +23,13 @@ TEST_IMAGES_DIR = os.path.join(DATA_DIR, "test_images") # 测试图片存放目�
 MODELS_DIR = os.path.join(PROJECT_ROOT, "models")       # AI模型文件存放目录
 SNAPSHOTS_OUTPUT_DIR = os.path.join(DATA_DIR, "event_snapshots") # 事件快照保存目录
 
-# --- 4. YOLOv8 SNPE 模型配置 ---
+# --- 4. 摄像头配置 (SC171特定) ---
+SC171_CAMERA_SOURCE = 2 # 摄像头ID
+WIDTH = 640
+HEIGHT = 480
+DESIRED_FPS = 20.0      # 你期望的摄像头捕获帧率
+
+# --- 5. YOLOv8 SNPE 模型配置 ---
 # !! 请务必使用 `snpe-dlc-info your_model.dlc` 命令检查并替换以下与你的模型匹配的值 !!
 YOLO_DLC_NAME = "yolov8n.dlc" # 模型文件名，方便更换
 YOLO_DLC_PATH = os.path.join(MODELS_DIR, YOLO_DLC_NAME) 
@@ -34,7 +40,7 @@ MODEL_INPUT_SHAPE = (640, 640)
 YOLO_MODEL_OUTPUT_NAMES = ["output0"] 
 MODEL_OUTPUT_SHAPE = (1,84,8400) 
 
-# --- 5. YOLOv8 后处理参数 ---
+# --- 6. YOLOv8 后处理参数 ---
 CONF_THRESHOLD = 0.25
 IOU_THRESHOLD = 0.45
 
@@ -50,9 +56,6 @@ COCO_CLASSES = [
     'hair drier', 'toothbrush'
 ]
 
-# --- 6. 摄像头配置 (SC171特定) ---
-SC171_CAMERA_SOURCE = 2 # 你测试成功的摄像头ID或路径 (例如 0, 1, "/dev/video0")
-DESIRED_FPS = 20.0      # 你期望的摄像头捕获帧率
 
 # --- 7. Gemini API (通过OpenAI库访问) 配置 ---
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") # 从.env文件加载
@@ -61,22 +64,23 @@ if not GEMINI_API_KEY:
 
 # Google为Gemini提供的OpenAI兼容端点 (根据你测试成功的配置)
 GEMINI_OPENAI_COMPATIBLE_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/" 
-# 用于Gemini API调用的模型ID (确保你的API Key有权访问此模型)
-GEMINI_MODEL_ID_FOR_VISION = "gemini-2.5-flash" # 你之前测试成功的模型是 "gemini-1.5-flash-latest" 或映射的 "gemini-2.5-flash-preview-05-20"
+# 用于Gemini API调用的模型ID
+GEMINI_MODEL_ID_FOR_VISION = "gemini-2.5-flash" 
 GEMINI_API_TIMEOUT_SECONDS = 60  # API调用超时时间
 
 # --- 8. 视频缓存配置 ---
-VIDEO_CACHE_DURATION_MINUTES = 0.25 # 视频片段缓存时长 (分钟) - 测试时用较小值，实际部署用15
+VIDEO_CACHE_DURATION_MINUTES = 0.25 # 视频片段缓存时长 (分钟)
+VIDEO_FILE_NAME = "./data/video_cache/video_cache.mp4"
 
 # --- 9. 事件处理与Gemini触发配置 ---
 TRIGGER_CLASSES_FOR_GEMINI = ["person"] # 哪些YOLO类别触发Gemini
 MIN_CONFIDENCE_FOR_GEMINI_TRIGGER = 0.65      # 触发Gemini的最小YOLO置信度
 GEMINI_COOLDOWN_SECONDS = 30                  # Gemini调用冷却时间 (秒)
 
-# --- 10. (占位) 服务器通信配置 (如果后续添加回来) ---
-# SERVER_EVENT_PUBLISH_ENDPOINT = os.getenv("SERVER_EVENT_ENDPOINT", "https://httpbin.org/post")
-# SERVER_VIDEO_UPLOAD_ENDPOINT = os.getenv("SERVER_VIDEO_ENDPOINT", "https://httpbin.org/post")
-# SERVER_AUTH_TOKEN = os.getenv("SERVER_API_AUTH_TOKEN")
+# --- 10. FrameStack与FrameQueue配置 ---
+VIDEO_STACK_MAX_SIZE = 50 # 实时帧缓冲器最大深度
+VIDEO_QUEUE_MAX_SIZE = 100 # 视频缓冲队列最大深度
+
 
 # --- 11. 辅助函数：确保目录存在 ---
 # 这个函数在其他模块导入此config时不会自动执行，需要在主程序显式调用

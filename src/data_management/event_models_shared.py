@@ -3,28 +3,28 @@ from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
 import uuid
 from typing import List, Dict, Any, Optional
-from pydantic import BaseModel as PydanticBaseModel, Field # 总是导入Pydantic，因为Gemini结果会用
+from pydantic import BaseModel , Field
 
 # --- Pydantic模型定义 (用于Gemini分析结果的结构) ---
 # 这些模型将由 GeminiAnalyzerCloud 返回，并作为 Event.gemini_analysis 的类型
-class SpecificEventDetailPydantic(PydanticBaseModel):
-    detected: bool
-    confidence: Optional[float] = None
-    details: Optional[str] = None
+class SpecificEventDetail(BaseModel):
+    detected: bool = Field(description="是否检测到此特定事件")
+    confidence: Optional[float] = Field(None, description="对此判断的置信度 (0.0-1.0)，如果模型能提供")
+    details: Optional[str] = Field(None, description="关于此特定事件的额外描述或证据")
 
-class SpecificEventsDetectedPydantic(PydanticBaseModel):
-    fire: SpecificEventDetailPydantic = Field(default_factory=lambda: SpecificEventDetailPydantic(detected=False))
-    fall_down: SpecificEventDetailPydantic = Field(default_factory=lambda: SpecificEventDetailPydantic(detected=False))
-    fighting: SpecificEventDetailPydantic = Field(default_factory=lambda: SpecificEventDetailPydantic(detected=False))
+class SpecificEventsDetected(BaseModel):
+    fire: SpecificEventDetail = Field(default_factory=lambda: SpecificEventDetail(detected=False))
+    fall_down: SpecificEventDetail = Field(default_factory=lambda: SpecificEventDetail(detected=False))
+    fighting: SpecificEventDetail = Field(default_factory=lambda: SpecificEventDetail(detected=False))
 
-class GeminiAnalysisResultPydantic(PydanticBaseModel):
-    risk_level: str 
-    description: str
-    specific_events_detected: SpecificEventsDetectedPydantic = Field(default_factory=SpecificEventsDetectedPydantic)
+class GeminiAnalysisResult(BaseModel):
+    risk_level: str = Field(description="总体风险等级 (例如: 低, 中, 高, 未知)")
+    description: str = Field(description="事件的综合文本描述")
+    specific_events_detected: SpecificEventsDetected = Field(default_factory=SpecificEventsDetected)
 
 # --- 项目核心Dataclass ---
 @dataclass
-class SimplifiedDetectedObject: # 这个是在全局作用域明确定义的
+class SimplifiedDetectedObject:
     class_name: str
     confidence: float
 
@@ -35,7 +35,7 @@ class Event:
     timestamp_utc: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     detected_yolo_objects: List[SimplifiedDetectedObject] = field(default_factory=list) 
     triggering_image_snapshot_path: Optional[str] = None 
-    gemini_analysis: Optional[GeminiAnalysisResultPydantic] = None # 类型是上面定义的Pydantic模型
+    gemini_analysis: Optional[GeminiAnalysisResult] = None # 类型是上面定义的Pydantic模型
 
     def to_custom_dict(self) -> Dict[str, Any]:
         yolo_objects_for_log = [{"class_name": obj.class_name, "confidence": round(obj.confidence, 4)} 
@@ -67,7 +67,7 @@ class Event:
         gemini_raw = data_dict.get("gemini_analysis")
         if gemini_raw and isinstance(gemini_raw, dict):
             try:
-                init_data["gemini_analysis"] = GeminiAnalysisResultPydantic(**gemini_raw)
+                init_data["gemini_analysis"] = GeminiAnalysisResult(**gemini_raw)
             except Exception: # ValidationError等
                 init_data["gemini_analysis"] = gemini_raw # 回退到字典
         else:
@@ -86,16 +86,16 @@ if __name__ == '__main__':
     yolo_sim_list = [s_obj1]
     
     # 创建模拟的Gemini分析结果对象，使用本模块定义的Pydantic模型
-    mock_fire_detail = SpecificEventDetailPydantic(detected=True, confidence=0.9, details="火焰明显")
-    mock_fall_detail = SpecificEventDetailPydantic(detected=False)
-    mock_fight_detail = SpecificEventDetailPydantic(detected=False)
+    mock_fire_detail = SpecificEventDetail(detected=True, confidence=0.9, details="火焰明显")
+    mock_fall_detail = SpecificEventDetail(detected=False)
+    mock_fight_detail = SpecificEventDetail(detected=False)
     
-    mock_specific_events = SpecificEventsDetectedPydantic(
+    mock_specific_events = SpecificEventsDetected(
         fire=mock_fire_detail, 
         fall_down=mock_fall_detail, 
         fighting=mock_fight_detail
     )
-    mock_gemini_analysis = GeminiAnalysisResultPydantic(
+    mock_gemini_analysis = GeminiAnalysisResult(
         risk_level="高",
         description="检测到火灾风险。",
         specific_events_detected=mock_specific_events

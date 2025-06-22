@@ -59,6 +59,7 @@ class YoloDetectorSC171:
             CONF_THRESHOLD, 
             IOU_THRESHOLD
         )
+        return self.final_detections
         
 
     def draw_results(self,save_path=None):
@@ -76,7 +77,11 @@ class YoloDetectorSC171:
                     x, y, w, h = [int(t) for t in box[:4]]
                     conf = box[4]
                     line = f"检测到{self.class_names[class_id]}|置信度{conf:.4f} (x,y,w,h):({x},{y},{w},{h})"
-                    result.append(line)
+                    print(line)
+                    obj = {}
+                    obj["class_name"]=self.class_names[class_id]
+                    obj["confidence"]=conf
+                    result.append(obj)
         return result
 
 

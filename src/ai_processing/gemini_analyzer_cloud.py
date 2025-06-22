@@ -23,20 +23,36 @@ except ImportError:
     GEMINI_API_TIMEOUT_SECONDS = 60
 
 # --- Pydantic模型定义 (保持不变) ---
-class SpecificEventDetail(BaseModel):
-    detected: bool = Field(description="是否检测到此特定事件")
-    confidence: Optional[float] = Field(None, description="对此判断的置信度 (0.0-1.0)，如果模型能提供")
-    details: Optional[str] = Field(None, description="关于此特定事件的额外描述或证据")
+# class SpecificEventDetail(BaseModel):
+#     detected: bool = Field(description="是否检测到此特定事件")
+#     confidence: Optional[float] = Field(None, description="对此判断的置信度 (0.0-1.0)，如果模型能提供")
+#     details: Optional[str] = Field(None, description="关于此特定事件的额外描述或证据")
 
-class SpecificEventsDetected(BaseModel):
-    fire: SpecificEventDetail = Field(default_factory=lambda: SpecificEventDetail(detected=False))
-    fall_down: SpecificEventDetail = Field(default_factory=lambda: SpecificEventDetail(detected=False))
-    fighting: SpecificEventDetail = Field(default_factory=lambda: SpecificEventDetail(detected=False))
+# class SpecificEventsDetected(BaseModel):
+#     fire: SpecificEventDetail = Field(default_factory=lambda: SpecificEventDetail(detected=False))
+#     fall_down: SpecificEventDetail = Field(default_factory=lambda: SpecificEventDetail(detected=False))
+#     fighting: SpecificEventDetail = Field(default_factory=lambda: SpecificEventDetail(detected=False))
 
-class GeminiAnalysisResult(BaseModel):
+# class GeminiAnalysisResult(BaseModel):
+#     risk_level: str = Field(description="总体风险等级 (例如: 低, 中, 高, 未知)")
+#     description: str = Field(description="事件的综合文本描述")
+#     specific_events_detected: SpecificEventsDetected = Field(default_factory=SpecificEventsDetected)
+
+class SpecificEventDetailPydantic(BaseModel):
+    detected: bool
+    confidence: Optional[float] = None
+    details: Optional[str] = None
+
+class SpecificEventsDetectedPydantic(BaseModel):
+    fire: SpecificEventDetailPydantic = Field(default_factory=lambda: SpecificEventDetailPydantic(detected=False))
+    fall_down: SpecificEventDetailPydantic = Field(default_factory=lambda: SpecificEventDetailPydantic(detected=False))
+    fighting: SpecificEventDetailPydantic = Field(default_factory=lambda: SpecificEventDetailPydantic(detected=False))
+
+class GeminiAnalysisResultPydantic(BaseModel):
     risk_level: str = Field(description="总体风险等级 (例如: 低, 中, 高, 未知)")
     description: str = Field(description="事件的综合文本描述")
-    specific_events_detected: SpecificEventsDetected = Field(default_factory=SpecificEventsDetected)
+    specific_events_detected: SpecificEventsDetectedPydantic = Field(default_factory=SpecificEventsDetectedPydantic)
+
 
 class GeminiAnalyzerCloud:
     def __init__(self):
@@ -114,7 +130,7 @@ class GeminiAnalyzerCloud:
             ]}
         ]
         
-        print(f"DEBUG [GeminiAnalyzerCloud]: 发送给Gemini的Prompt (部分): {prompt_text_for_gemini[:200]}...")
+        # print(f"DEBUG [GeminiAnalyzerCloud]: 发送给Gemini的Prompt (部分): {prompt_text_for_gemini[:200]}...")
         content_str = None # 初始化
 
         try:

@@ -11,7 +11,7 @@ def preprocess_img(img, target_shape: tuple):
 
 def draw_detect_res(img, all_boxes,class_names):
     final_box_count = sum(len(b) for b in all_boxes)
-    print(f"\n--- 绘制 {final_box_count} 个最终检测框 ---")
+    # print(f"\n--- 绘制 {final_box_count} 个最终检测框 ---")
     
     colors = [(255, 56, 56), (56, 255, 56), (56, 56, 255), (255, 157, 151), 
               (255, 112, 31), (72, 249, 10), (61, 219, 134), (0, 194, 255)]
@@ -24,7 +24,7 @@ def draw_detect_res(img, all_boxes,class_names):
         class_name = class_names[class_id]
         for box in boxes:
             x, y, w, h, conf = [int(t) for t in box[:4]] + [box[4]]
-            print(f"检测到: {class_name:<12} | 置信度: {conf:.2f} | 边框 (x,y,w,h): ({x}, {y}, {w}, {h})")
+            # print(f"检测到: {class_name:<12} | 置信度: {conf:.2f} | 边框 (x,y,w,h): ({x}, {y}, {w}, {h})")
             color = colors[class_id % len(colors)]
             cv2.rectangle(img_uint8, (x, y), (x + w, y + h), color, thickness=2)
             label = f'{class_name} {conf:.2f}'

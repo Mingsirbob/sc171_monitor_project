@@ -51,9 +51,9 @@ def NMS(dets, thresh):
 
 def detect_postprocess(class_names, prediction, original_shape, model_shape, conf_thres, iou_thres):
     num_classes = len(class_names)
-    print(f"检测类别数量: {num_classes}")
+    # print(f"检测类别数量: {num_classes}")
     
-    print(f"原始模型输出形状: {prediction.shape}")
+    # print(f"原始模型输出形状: {prediction.shape}")
 
     num_properties = num_classes + 4
     if prediction.ndim == 1:
