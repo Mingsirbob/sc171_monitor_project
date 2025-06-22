@@ -11,9 +11,9 @@ try:
     from src.video_io.camera_handler_sc171 import CameraHandler
     from src.video_io.video_buffer_sc171 import FrameStack, FrameQueue
     from src.ai_processing.yolo_detector_sc171 import YoloDetectorSC171
-    from src.ai_processing.gemini_analyzer_cloud import GeminiAnalyzerCloud, GeminiAnalysisResult
+    from src.ai_processing.gemini_analyzer_cloud import GeminiAnalyzerCloud
     from src.video_io.video_saver_sc171 import VideoSaver
-    from src.data_management.event_models_shared import Event, SimplifiedDetectedObject
+    from src.data_management.event_models_shared import Event, SimplifiedDetectedObject, convert_dicts_to_detected_objects
     from src.data_management.event_logger_local import EventLoggerLocal
 except ImportError as e:
     print(f"关键导入错误: {e}")
@@ -22,11 +22,8 @@ except ImportError as e:
 # --- 2. 全局应用级配置读取 ---
 SAVE_DEBUG_FRAMES = getattr(cfg, 'SAVE_RESULT_FRAMES', False)
 SAVE_FRAME_INTERVAL = getattr(cfg, 'SAVE_FRAME_INTERVAL', 300)
-DEBUG_FRAMES_DIR = os.path.join(cfg.DATA_DIR, "main_output_frames_v2.5_new_yolo") # 更新版本
 EVENT_SNAPSHOTS_DIR = os.path.join(cfg.DATA_DIR, "event_snapshots")
-
-TRIGGER_CLASSES = getattr(cfg, 'TRIGGER_CLASSES_FOR_GEMINI', ["person"]) # 保持不变
-# MIN_CONFIDENCE_FOR_GEMINI_TRIGGER 现在由 YoloDetectorSC171 内部的 CONF_THRESHOLD 控制
+TRIGGER_CLASSES = getattr(cfg, 'TRIGGER_CLASSES_FOR_GEMINI', ["person"]) 
 GEMINI_COOLDOWN = getattr(cfg, 'GEMINI_COOLDOWN_SECONDS', 30)
 
 def gemini_analyze(gemini:GeminiAnalyzerCloud, image, yolo_result):
@@ -84,16 +81,23 @@ def analysis_consumer_worker(yolo:YoloDetectorSC171, gemini:GeminiAnalyzerCloud,
         raw_yolo_result = yolo.detect(frame_to_analyze)
         yolo.draw_results('./data/test_results_detector/test.jpg')
         yolo_result = yolo.save_results(["person"])
+
         if yolo_result:
             print("检测到目标")
+            yolo_result = convert_dicts_to_detected_objects(yolo_result)
             gemini_data = gemini_analyze(gemini, frame_to_analyze, yolo_result)
             
-        event_this_frame = Event(
-            camera_id = cfg.SC171_CAMERA_SOURCE,
-            detected_yolo_objects=yolo_result,
-            triggering_image_snapshot_path='./data/test_results_detector/test.jpg',
-            gemini_analysis=gemini_data,
-        )
+            event_this_frame = Event(
+                camera_id = cfg.SC171_CAMERA_SOURCE,
+                detected_yolo_objects=yolo_result,
+                triggering_image_snapshot_path='./data/test_results_detector/test.jpg',
+                gemini_analysis=gemini_data,
+            )
+
+            if logger.log_directory:
+                if logger.log_event(event_this_frame):
+                    print(f"事件 {event_this_frame.event_id} 已成功记录。")
+                
 
         yolo_result = None
 

@@ -19,39 +19,14 @@ except ImportError:
     print("警告 [GeminiAnalyzerCloud]: 无法从config_sc171导入Gemini配置。将使用后备值。")
     GEMINI_API_KEY = "YOUR_GEMINI_API_KEY_FALLBACK"
     GEMINI_OPENAI_COMPATIBLE_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
-    GEMINI_MODEL_ID_FOR_VISION = "gemini-1.5-flash-latest"
+    GEMINI_MODEL_ID_FOR_VISION = "gemini-2.5-flash-latest"
     GEMINI_API_TIMEOUT_SECONDS = 60
 
-# --- Pydantic模型定义 (保持不变) ---
-# class SpecificEventDetail(BaseModel):
-#     detected: bool = Field(description="是否检测到此特定事件")
-#     confidence: Optional[float] = Field(None, description="对此判断的置信度 (0.0-1.0)，如果模型能提供")
-#     details: Optional[str] = Field(None, description="关于此特定事件的额外描述或证据")
-
-# class SpecificEventsDetected(BaseModel):
-#     fire: SpecificEventDetail = Field(default_factory=lambda: SpecificEventDetail(detected=False))
-#     fall_down: SpecificEventDetail = Field(default_factory=lambda: SpecificEventDetail(detected=False))
-#     fighting: SpecificEventDetail = Field(default_factory=lambda: SpecificEventDetail(detected=False))
-
-# class GeminiAnalysisResult(BaseModel):
-#     risk_level: str = Field(description="总体风险等级 (例如: 低, 中, 高, 未知)")
-#     description: str = Field(description="事件的综合文本描述")
-#     specific_events_detected: SpecificEventsDetected = Field(default_factory=SpecificEventsDetected)
-
-class SpecificEventDetailPydantic(BaseModel):
-    detected: bool
-    confidence: Optional[float] = None
-    details: Optional[str] = None
-
-class SpecificEventsDetectedPydantic(BaseModel):
-    fire: SpecificEventDetailPydantic = Field(default_factory=lambda: SpecificEventDetailPydantic(detected=False))
-    fall_down: SpecificEventDetailPydantic = Field(default_factory=lambda: SpecificEventDetailPydantic(detected=False))
-    fighting: SpecificEventDetailPydantic = Field(default_factory=lambda: SpecificEventDetailPydantic(detected=False))
-
-class GeminiAnalysisResultPydantic(BaseModel):
-    risk_level: str = Field(description="总体风险等级 (例如: 低, 中, 高, 未知)")
-    description: str = Field(description="事件的综合文本描述")
-    specific_events_detected: SpecificEventsDetectedPydantic = Field(default_factory=SpecificEventsDetectedPydantic)
+from src.data_management.event_models_shared import (
+    SpecificEventDetail,
+    SpecificEventsDetected,
+    GeminiAnalysisResult
+)
 
 
 class GeminiAnalyzerCloud:
@@ -144,7 +119,7 @@ class GeminiAnalyzerCloud:
 
             if completion.choices and completion.choices[0].message and completion.choices[0].message.content:
                 content_str = completion.choices[0].message.content
-                print(f"****** GEMINI RAW RESPONSE START ******\n{content_str}\n****** GEMINI RAW RESPONSE END ******")
+                # print(f"****** GEMINI RAW RESPONSE START ******\n{content_str}\n****** GEMINI RAW RESPONSE END ******")
                 
                 json_to_parse = self._extract_json_from_string(content_str)
                 
@@ -210,11 +185,9 @@ if __name__ == '__main__':
                 print(f"    火焰: Detected={analysis_result.specific_events_detected.fire.detected}, Conf={analysis_result.specific_events_detected.fire.confidence}, Details='{analysis_result.specific_events_detected.fire.details}'")
                 print(f"    摔倒: Detected={analysis_result.specific_events_detected.fall_down.detected}, Conf={analysis_result.specific_events_detected.fall_down.confidence}, Details='{analysis_result.specific_events_detected.fall_down.details}'")
                 print(f"    打架: Detected={analysis_result.specific_events_detected.fighting.detected}, Conf={analysis_result.specific_events_detected.fighting.confidence}, Details='{analysis_result.specific_events_detected.fighting.details}'")
-                try:
-                    print("\n  完整JSON输出 (Pydantic V2):"); print(analysis_result.model_dump_json(indent=2))
-                except AttributeError:
-                    try: print("\n  完整JSON输出 (Pydantic V1):"); print(analysis_result.json(indent=2))
-                    except AttributeError: print("无法调用 .model_dump_json() 或 .json()。")
+                print("\n  完整JSON输出 (Pydantic V2):"); 
+                print(analysis_result.model_dump_json(indent=2))
+                
             else:
                 print("  未能从Gemini获取或解析有效的结构化分析结果。")
     print("\n--- GeminiAnalyzerCloud 模块测试完成 ---")

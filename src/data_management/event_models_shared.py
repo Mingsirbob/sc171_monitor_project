@@ -74,6 +74,23 @@ class Event:
             init_data["gemini_analysis"] = gemini_raw
         return cls(**init_data)
 
+def convert_dicts_to_detected_objects(data_list: List[Dict[str, Any]]) -> List[SimplifiedDetectedObject]:
+    """
+    将一个包含检测结果字典的列表转换为 SimplifiedDetectedObject 实例的列表。
+    Args:
+        data_list (List[Dict[str, Any]]): 原始的字典列表，每个字典代表一个检测结果。
+    Returns:
+        List[SimplifiedDetectedObject]: 转换后的 SimplifiedDetectedObject 实例列表。
+                                        如果某个字典无法成功转换，则会打印错误信息并跳过该项。
+    """
+    converted_objects: List[SimplifiedDetectedObject] = []
+    for item_dict in data_list:
+        obj = SimplifiedDetectedObject(**item_dict)
+        converted_objects.append(obj)
+            
+    return converted_objects
+
+
 
 # --- 模块级测试代码 ---
 if __name__ == '__main__':

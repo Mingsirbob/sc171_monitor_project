@@ -2,11 +2,11 @@
 import json
 import os
 from datetime import datetime, timezone
-from typing import Optional, List # 确保List也从typing导入
+from typing import Optional, List 
 
 # 导入Event模型和配置
 try:
-    from .event_models_shared import Event, SimplifiedDetectedObject # <--- 确保也导入SimplifiedDetectedObject
+    from .event_models_shared import Event, SimplifiedDetectedObject 
     from config_sc171 import LOG_DIR
 except ImportError:
     print("警告 [EventLoggerLocal]: 无法从config_sc171或同级event_models_shared导入。")
