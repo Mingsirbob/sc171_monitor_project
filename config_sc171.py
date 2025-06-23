@@ -1,12 +1,12 @@
 # ~/sc171_monitor_project/config_sc171.py
 import os
-from dotenv import load_dotenv # 确保在文件顶部导入
+from dotenv import load_dotenv 
 
 # --- 1. 项目基础路径设置 ---
 # 假设此config_sc171.py文件位于项目的根目录下
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 
-# --- 2. 加载 .env 文件 (应在所有 os.getenv 调用之前) ---
+# --- 2. 加载 .env 文件  ---
 # 这会加载项目根目录下的 .env 文件中的环境变量
 dotenv_path = os.path.join(PROJECT_ROOT, '.env')
 if os.path.exists(dotenv_path):
@@ -30,7 +30,7 @@ HEIGHT = 480
 DESIRED_FPS = 20.0      # 你期望的摄像头捕获帧率
 
 # --- 5. YOLOv8 SNPE 模型配置 ---
-# !! 请务必使用 `snpe-dlc-info your_model.dlc` 命令检查并替换以下与你的模型匹配的值 !!
+# 使用 `snpe-dlc-info your_model.dlc` 命令检查并替换以下与你的模型匹配的值 !!
 YOLO_DLC_NAME = "yolov8n.dlc" # 模型文件名，方便更换
 YOLO_DLC_PATH = os.path.join(MODELS_DIR, YOLO_DLC_NAME) 
 
@@ -62,14 +62,13 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") # 从.env文件加载
 if not GEMINI_API_KEY:
     print("警告 [config_sc171]: GEMINI_API_KEY 未在环境变量中设置。Gemini云分析将不可用。")
 
-# Google为Gemini提供的OpenAI兼容端点 (根据你测试成功的配置)
 GEMINI_OPENAI_COMPATIBLE_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/" 
 # 用于Gemini API调用的模型ID
 GEMINI_MODEL_ID_FOR_VISION = "gemini-2.5-flash" 
 GEMINI_API_TIMEOUT_SECONDS = 60  # API调用超时时间
 
 # --- 8. 视频缓存配置 ---
-VIDEO_CACHE_DURATION_MINUTES = 0.25 # 视频片段缓存时长 (分钟)
+VIDEO_CACHE_DURATION_MINUTES = 10 # 视频片段缓存时长 (分钟)
 VIDEO_FILE_NAME = "./data/video_cache/video_cache.mp4"
 
 # --- 9. 事件处理与Gemini触发配置 ---

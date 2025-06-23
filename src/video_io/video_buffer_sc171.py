@@ -31,13 +31,11 @@ class FrameStack:
         if max_size <= 0:
             raise ValueError("max_size必须是正整数。")
             
-        # 使用deque作为底层数据结构，maxlen参数自动处理了固定大小和旧元素出栈的逻辑
         self._deque = deque(maxlen=max_size)
-        
         # 创建一个锁来保证复合操作的线程安全
         self._lock = threading.Lock()
-        
         self.last_frame = None
+        self.count = 0
 
     def push(self, frame: np.ndarray):
         """
@@ -47,6 +45,8 @@ class FrameStack:
             frame (np.ndarray): 要添加的图像帧。
         """
         # deque的append是线程安全的原子操作，所以不需要锁
+        self.count = self.count + 1
+        print(f"当前入栈的帧的序号是{self.count}")
         self._deque.append(frame)
 
     def get_latest(self) -> Optional[np.ndarray]:
@@ -57,6 +57,7 @@ class FrameStack:
         Returns:
             Optional[np.ndarray]: 最新的帧，如果栈为空则返回 None。
         """
+        print(f"当前栈顶最新的一帧的序号是{self.count}")
         with self._lock:
             if len(self._deque) > 0:
                 # 返回deque的最后一个元素，即栈顶

@@ -13,7 +13,7 @@ try:
     from src.ai_processing.yolo_detector_sc171 import YoloDetectorSC171
     from src.ai_processing.gemini_analyzer_cloud import GeminiAnalyzerCloud
     from src.video_io.video_saver_sc171 import VideoSaver
-    from src.data_management.event_models_shared import Event, SimplifiedDetectedObject, convert_dicts_to_detected_objects
+    from src.data_management.event_models_shared import Event, convert_dicts_to_detected_objects
     from src.data_management.event_logger_local import EventLoggerLocal
 except ImportError as e:
     print(f"关键导入错误: {e}")
@@ -37,7 +37,7 @@ def initialize_modules(config_module):
     print("\n[模块初始化阶段]")
     print("摄像头初始化")
     camera = CameraHandler(camera_source=config_module.SC171_CAMERA_SOURCE, width=config_module.WIDTH, height=config_module.HEIGHT, fps=config_module.DESIRED_FPS)
-    if not camera.is_opened(): print("错误：摄像头打开失败。"); return None, None, None, None, None
+    if not camera.is_opened(): print("错误：摄像头打开失败。"); return None
     camera.print_info()
     actual_width, actual_height, actual_fps = camera.get_actual_params()
 
@@ -47,11 +47,11 @@ def initialize_modules(config_module):
 
     print("Gemini模型初始化")
     gemini = GeminiAnalyzerCloud() 
-    if not gemini.is_initialized: print("警告：Gemini分析器初始化失败。")
+    if not gemini.is_initialized: print("警告：Gemini分析器初始化失败。"); return None
     else: print("Gemini模型: 初始化成功")
 
     logger = EventLoggerLocal(log_directory=config_module.LOG_DIR) 
-    if logger.log_directory is None: print("警告：本地事件记录器目录无效。")
+    if logger.log_directory is None: print("警告：本地事件记录器目录无效。"); return None
     else: print(f"  本地事件记录器: 日志目录 '{logger.log_directory}'")
     print("本地事件记录器: 初始化成功")
 
@@ -71,8 +71,8 @@ def camera_producer_worker(camera:CameraHandler, frame_stack:FrameStack, frame_q
         frame_stack.push(frame)
         frame_queue.put(frame)
 
-def analysis_consumer_worker(yolo:YoloDetectorSC171, gemini:GeminiAnalyzerCloud, frame_stack:FrameStack, logger:EventLoggerLocal, stop_event:threading.Event):
-    time.sleep(5)
+def analysis_consumer_worker(yolo:YoloDetectorSC171, gemini:GeminiAnalyzerCloud, frame_stack:FrameStack, logger:EventLoggerLocal, yolo_trigger_event:threading.Event,stop_event:threading.Event):
+    time.sleep(1)
     yolo_result = None
     while not stop_event.is_set():
         latest_frame = frame_stack.get_latest()
@@ -84,6 +84,7 @@ def analysis_consumer_worker(yolo:YoloDetectorSC171, gemini:GeminiAnalyzerCloud,
 
         if yolo_result:
             print("检测到目标")
+            yolo_trigger_event.set()
             yolo_result = convert_dicts_to_detected_objects(yolo_result)
             gemini_data = gemini_analyze(gemini, frame_to_analyze, yolo_result)
             
@@ -98,7 +99,7 @@ def analysis_consumer_worker(yolo:YoloDetectorSC171, gemini:GeminiAnalyzerCloud,
                 if logger.log_event(event_this_frame):
                     print(f"事件 {event_this_frame.event_id} 已成功记录。")
                 
-
+        yolo_trigger_event.clear()
         yolo_result = None
 
     yolo.close()
@@ -106,16 +107,17 @@ def analysis_consumer_worker(yolo:YoloDetectorSC171, gemini:GeminiAnalyzerCloud,
 
 
 
-
-
-
-def video_saver_consumer_worker(video_saver:VideoSaver, frame_queue:FrameQueue, stop_event:threading.Event):
-    time.sleep(5)
-    frame_count = 0
-    while not stop_event.is_set() or not frame_queue.is_empty():
-        frame = frame_queue.get()
-        video_saver.write(frame)
-        frame_count += 1
+def video_saver_consumer_worker(video_saver:VideoSaver, frame_queue:FrameQueue, yolo_trigger_event:threading.Event, stop_event:threading.Event, segment_duration: float):
+    while not stop_event.is_set():
+        yolo_trigger_event.wait()
+        yolo_trigger_event.clear()
+        print("触发事件，开始缓存视频片段")
+        start_time = time.time()
+        video_saver.open_new_segment()
+        while time.time() - start_time < segment_duration:
+            frame = frame_queue.get()
+            video_saver.write(frame)
+        print("视频缓存完成")
     video_saver.close()
         
 
@@ -125,15 +127,21 @@ def run_application(): # 不变
     raw_frame_stack = FrameStack(max_size=cfg.VIDEO_STACK_MAX_SIZE)
     raw_frame_queue = FrameQueue(max_size=cfg.VIDEO_QUEUE_MAX_SIZE)
     stop_event = threading.Event()
+    yolo_trigger_event = threading.Event()
 
     # --- 2. 初始化模块实例 ---
     model = initialize_modules(cfg)
-
+    if model is None:
+        print("错误：模块初始化失败。")
+        return
+    
     camera, yolo, gemini, video_saver, logger = model
 
+
+    # --- 3. 创建线程 ---
     camera_producer_t = threading.Thread(target=camera_producer_worker,args=(camera,raw_frame_stack,raw_frame_queue,stop_event))
-    analysis_consumer_t = threading.Thread(target=analysis_consumer_worker,args=(yolo,gemini,raw_frame_stack,logger,stop_event))
-    video_saver_consumer_t = threading.Thread(target=video_saver_consumer_worker,args=(video_saver,raw_frame_queue,stop_event))
+    analysis_consumer_t = threading.Thread(target=analysis_consumer_worker,args=(yolo,gemini,raw_frame_stack,logger, yolo_trigger_event, stop_event))
+    video_saver_consumer_t = threading.Thread(target=video_saver_consumer_worker,args=(video_saver,raw_frame_queue, yolo_trigger_event,stop_event,cfg.VIDEO_CACHE_DURATION_MINUTES))
 
     print("线程启动")
     camera_producer_t.start()
