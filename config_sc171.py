@@ -101,7 +101,9 @@ def ensure_project_directories_exist():
     print("信息 [config_sc171]: 项目核心目录已检查/创建。")
 
 
-# --- 12. (可选) 模块自测试/配置打印 ---
+# --- 12. 视频路径 ---
+VIDEO_PATH = "./data/test_video/test1.mp4"
+
 # 当直接运行 `python3 config_sc171.py` 时执行
 if __name__ == '__main__':
     print("--- 配置信息预览 (config_sc171.py) ---")
