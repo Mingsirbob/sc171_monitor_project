@@ -46,7 +46,7 @@ class FrameStack:
         """
         # deque的append是线程安全的原子操作，所以不需要锁
         self.count = self.count + 1
-        print(f"当前入栈的帧的序号是{self.count}")
+        # print(f"当前入栈的帧的序号是{self.count}")
         self._deque.append(frame)
 
     def get_latest(self) -> Optional[np.ndarray]:
@@ -57,7 +57,7 @@ class FrameStack:
         Returns:
             Optional[np.ndarray]: 最新的帧，如果栈为空则返回 None。
         """
-        print(f"当前栈顶最新的一帧的序号是{self.count}")
+        # print(f"当前栈顶最新的一帧的序号是{self.count}")
         with self._lock:
             if len(self._deque) > 0:
                 # 返回deque的最后一个元素，即栈顶
@@ -69,73 +69,72 @@ class FrameStack:
         """返回当前栈中的帧数。"""
         return len(self._deque)
 
-class FrameQueue:
+class FrameQueue: # 现在更像一个有界、线程安全的deque封装
     """
-    一个线程安全的、固定大小的帧队列 (先进先出)。
-    专门为需要处理每一帧的场景设计，如视频录制。
+    一个线程安全的、固定大小的帧队列 (底层使用deque实现滑动窗口)。
+    当队列满时，新加入的帧会自动替换掉最早的帧。
     """
     def __init__(self, max_size: int = 128):
-        """
-        初始化帧队列。
-
-        Args:
-            max_size (int): 队列的最大容量。这个值应该足够大，以缓冲生产者和消费者之间的速度差异。
-                            例如，如果摄像头30fps，录制器15fps，那么每秒会积压15帧。
-        """
         if max_size <= 0:
             raise ValueError("max_size必须是正整数。")
         
-        # 直接使用内置的线程安全队列
-        self._queue = queue.Queue(maxsize=max_size)
+        # 使用deque作为底层数据结构，maxlen参数自动处理了固定大小和旧元素出栈的逻辑
+        self._deque = deque(maxlen=max_size)
+        
+        # deque的核心操作是线程安全的，但如果需要复合操作或更强的保证，可以保留锁
+        self._lock = threading.Lock() 
+        # 对于简单的put和get，deque通常足够，但如果未来有更复杂的操作，锁是有用的
 
-    def put(self, frame: np.ndarray, block: bool = True, timeout: Optional[float] = None):
+    def put(self, frame: np.ndarray): # put现在是非阻塞的，且自动替换
         """
-        将一个新帧放入队尾。
+        将一个新帧放入队列。如果队列已满，最早的帧将被移除。
+        这是一个非阻塞操作。
 
         Args:
             frame (np.ndarray): 要添加的图像帧。
-            block (bool): 如果为True，当队列满时会阻塞（等待），直到有空间。
-            timeout (float, optional): 等待的超时秒数。
-        
-        Returns:
-            bool: 如果成功放入则返回True，如果因超时或非阻塞模式下队列已满则返回False。
         """
-        try:
-            self._queue.put(frame, block=block, timeout=timeout)
-            return True
-        except queue.Full:
-            # 仅在非阻塞或超时情况下会发生
-            # print("警告: FrameQueue 已满，丢弃一帧。")
-            return False
+        # deque.append() 是线程安全的，并且会自动处理maxlen
+        with self._lock: # 保护deque的修改，虽然append是原子的，但复合操作可能需要
+            self._deque.append(frame)
 
     def get(self, block: bool = True, timeout: Optional[float] = None) -> Optional[np.ndarray]:
         """
         从队首获取一帧。
 
         Args:
-            block (bool): 如果为True，当队列空时会阻塞（等待），直到有新帧。
+            block (bool): 如果为True且队列空，则阻塞等待。
             timeout (float, optional): 等待的超时秒数。
 
         Returns:
-            Optional[np.ndarray]: 获取到的帧，如果因超时或非阻塞模式下队列为空则返回 None。
+            Optional[np.ndarray]: 获取到的帧，或None。
         """
-        try:
-            return self._queue.get(block=block, timeout=timeout)
-        except queue.Empty:
-            # 仅在非阻塞或超时情况下会发生
-            return None
+        # 我们需要模拟queue.Queue的阻塞行为，因为deque.popleft()在空时会抛异常
+        if block:
+            start_time = time.time()
+            while True: # 模拟阻塞等待
+                with self._lock:
+                    if len(self._deque) > 0:
+                        return self._deque.popleft() # 从左边（队首）取出
+                if timeout is not None and (time.time() - start_time) >= timeout:
+                    return None # 超时
+                time.sleep(0.001) # 短暂休眠，避免CPU空转，并给其他线程机会
+        else: # 非阻塞
+            with self._lock:
+                if len(self._deque) > 0:
+                    return self._deque.popleft()
+            return None # 非阻塞且队列为空
 
     def get_size(self) -> int:
-        """返回当前队列中的帧数。"""
-        return self._queue.qsize()
+        with self._lock:
+            return len(self._deque)
 
-    def is_full(self) -> bool:
-        """检查队列是否已满。"""
-        return self._queue.full()
+    def is_full(self) -> bool: # deque没有直接的full()，但我们可以判断size是否等于maxlen
+        with self._lock:
+            return len(self._deque) == self._deque.maxlen
 
     def is_empty(self) -> bool:
-        """检查队列是否为空。"""
-        return self._queue.empty()
+        with self._lock:
+            return len(self._deque) == 0
 
 
 # --- 简化后的模块级测试代码 ---

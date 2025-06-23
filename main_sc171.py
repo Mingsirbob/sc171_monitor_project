@@ -62,12 +62,15 @@ def initialize_modules(config_module):
     return camera, yolo, gemini, video_saver, logger
 
 def camera_producer_worker(camera:CameraHandler, frame_stack:FrameStack, frame_queue:FrameQueue, stop_event:threading.Event):
+    count = 0
     while not stop_event.is_set():
         ret, frame = camera.read_frame()
         if not ret:
             print("错误：从摄像头读取帧失败。")
             stop_event.set()
             break
+        count = count + 1
+        # print(f"当前帧的序号是{count}")
         frame_stack.push(frame)
         frame_queue.put(frame)
 

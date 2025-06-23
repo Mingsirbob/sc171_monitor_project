@@ -27,7 +27,7 @@ SNAPSHOTS_OUTPUT_DIR = os.path.join(DATA_DIR, "event_snapshots") # 事件快照�
 SC171_CAMERA_SOURCE = 2 # 摄像头ID
 WIDTH = 640
 HEIGHT = 480
-DESIRED_FPS = 20.0      # 你期望的摄像头捕获帧率
+DESIRED_FPS = 30.0      # 你期望的摄像头捕获帧率
 
 # --- 5. YOLOv8 SNPE 模型配置 ---
 # 使用 `snpe-dlc-info your_model.dlc` 命令检查并替换以下与你的模型匹配的值 !!
