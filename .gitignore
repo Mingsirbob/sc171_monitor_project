@@ -8,4 +8,7 @@ logs/
 models/*.dlc
 video_cache/
 Log/
-data/
+data/cam_test_frames
+data/cam_test_frames_simple
+data/event_snapshots
+data/video_cache/video_cache.mp4

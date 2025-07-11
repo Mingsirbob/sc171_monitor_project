@@ -2,4 +2,4 @@
 numpy
 opencv-python
 requests
-# 其他依赖请按需添加
+

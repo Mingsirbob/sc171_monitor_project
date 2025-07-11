@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 
 # --- 1. 导入 ---
 try:
-    import config_sc171 as cfg # 用于应用级配置
+    import config_sc171 as cfg
     from src.video_io.camera_handler_sc171 import CameraHandler
     from src.video_io.video_buffer_sc171 import FrameStack, FrameQueue
     from src.ai_processing.yolo_detector_sc171 import YoloDetectorSC171
@@ -118,8 +118,14 @@ def video_saver_consumer_worker(video_saver:VideoSaver, frame_queue:FrameQueue, 
         start_time = time.time()
         video_saver.open_new_segment()
         while time.time() - start_time < segment_duration:
-            frame = frame_queue.get()
-            video_saver.write(frame)
+            if stop_event.is_set():
+                break
+            try:
+                frame = frame_queue.get(timeout=0.5)  # 设置超时
+                video_saver.write(frame)
+            except Exception:
+                if stop_event.is_set():
+                    break
         print("视频缓存完成")
     video_saver.close()
         

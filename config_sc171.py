@@ -102,7 +102,7 @@ def ensure_project_directories_exist():
 
 
 # --- 12. 视频路径 ---
-VIDEO_PATH = "./data/test_video/test1.mp4"
+VIDEO_PATH = "./data/test_video/sudden_ill.mp4"
 
 # 当直接运行 `python3 config_sc171.py` 时执行
 if __name__ == '__main__':
@@ -116,7 +116,6 @@ if __name__ == '__main__':
     
     print(f"\n  YOLO DLC路径 (YOLO_DLC_PATH): {YOLO_DLC_PATH}")
     print(f"  YOLO 输入节点名 (YOLO_MODEL_INPUT_NAME): {YOLO_MODEL_INPUT_NAME}")
-    print(f"  YOLO 输入布局 (YOLO_MODEL_INPUT_LAYOUT): {YOLO_MODEL_INPUT_LAYOUT}")
     print(f"  YOLO 输出节点名 (YOLO_MODEL_OUTPUT_NAMES): {YOLO_MODEL_OUTPUT_NAMES}")
     
     print(f"\n  摄像头源 (SC171_CAMERA_SOURCE): {SC171_CAMERA_SOURCE}")

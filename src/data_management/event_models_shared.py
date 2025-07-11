@@ -13,9 +13,9 @@ class SpecificEventDetail(BaseModel):
     details: Optional[str] = Field(None, description="关于此特定事件的额外描述或证据")
 
 class SpecificEventsDetected(BaseModel):
-    fire: SpecificEventDetail = Field(default_factory=lambda: SpecificEventDetail(detected=False))
-    fall_down: SpecificEventDetail = Field(default_factory=lambda: SpecificEventDetail(detected=False))
     fighting: SpecificEventDetail = Field(default_factory=lambda: SpecificEventDetail(detected=False))
+    fall_down: SpecificEventDetail = Field(default_factory=lambda: SpecificEventDetail(detected=False))
+    sudden_illness: SpecificEventDetail = Field(default_factory=lambda: SpecificEventDetail(detected=False))
 
 class GeminiAnalysisResult(BaseModel):
     risk_level: str = Field(description="总体风险等级 (例如: 低, 中, 高, 未知)")
@@ -103,18 +103,19 @@ if __name__ == '__main__':
     yolo_sim_list = [s_obj1]
     
     # 创建模拟的Gemini分析结果对象，使用本模块定义的Pydantic模型
-    mock_fire_detail = SpecificEventDetail(detected=True, confidence=0.9, details="火焰明显")
+
+    mock_fighting_detail = SpecificEventDetail(detected=True, confidence=0.8, details="有打斗行为")
     mock_fall_detail = SpecificEventDetail(detected=False)
-    mock_fight_detail = SpecificEventDetail(detected=False)
-    
+    mock_sudden_illness_detail = SpecificEventDetail(detected=True, confidence=0.7, details="疑似有人突发疾病")
+
     mock_specific_events = SpecificEventsDetected(
-        fire=mock_fire_detail, 
-        fall_down=mock_fall_detail, 
-        fighting=mock_fight_detail
+        fighting=mock_fighting_detail,
+        fall_down=mock_fall_detail,
+        sudden_illness=mock_sudden_illness_detail
     )
     mock_gemini_analysis = GeminiAnalysisResult(
         risk_level="高",
-        description="检测到火灾风险。",
+        description="检测到打斗和疑似突发疾病风险。",
         specific_events_detected=mock_specific_events
     )
 
@@ -127,7 +128,8 @@ if __name__ == '__main__':
     print(f"\n  创建的Event对象 (event1):\n    ID: {event1.event_id}\n    Camera: {event1.camera_id}")
     if event1.gemini_analysis:
         print(f"    Gemini Risk: {event1.gemini_analysis.risk_level}")
-        print(f"    Gemini Fire Detected: {event1.gemini_analysis.specific_events_detected.fire.detected}")
+        print(f"    Gemini Fighting Detected: {event1.gemini_analysis.specific_events_detected.fighting.detected}")
+        print(f"    Gemini Sudden Illness Detected: {event1.gemini_analysis.specific_events_detected.sudden_illness.detected}")
 
     print("\n  Event1 to_custom_dict() 输出:")
     import json # 确保导入json

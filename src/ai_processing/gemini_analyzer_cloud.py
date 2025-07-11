@@ -68,7 +68,7 @@ class GeminiAnalyzerCloud:
         json_end = text.rfind('}')
         if json_start != -1 and json_end != -1 and json_end > json_start:
             return text[json_start : json_end+1]
-        return None # 未找到有效的JSON结构
+        return None 
 
     def analyze_image(self, frame_bgr: np.ndarray, yolo_objects_summary: str = "未知物体") -> Optional[GeminiAnalysisResult]:
         if not self.is_initialized or self.client is None:
@@ -85,16 +85,16 @@ class GeminiAnalyzerCloud:
         # Prompt工程是这里的核心，明确要求JSON输出并描述结构
         prompt_text_for_gemini = (
             "你是一个专业的图像风险评估助手。请严格按照以下JSON格式提供你的分析结果，不要包含任何额外的解释或markdown标记。JSON对象必须包含以下顶级键：'risk_level', 'description', 'specific_events_detected'。\n"
-            "'specific_events_detected' 对象必须包含 'fire', 'fall_down', 'fighting' 这三个键，每个键对应的值是一个对象，该对象必须包含 'detected' (布尔型)键，并可选包含 'confidence' (浮点型0.0-1.0) 和 'details' (字符串)键。\n"
+            "'specific_events_detected' 对象必须包含 'fighting', 'fall_down', 'sudden illness' 这三个键，每个键对应的值是一个对象，该对象必须包含 'detected' (布尔型)键，并可选包含 'confidence' (浮点型0.0-1.0) 和 'details' (字符串)键。\n"
             "--- 分析任务开始 ---\n"
             f"所附图片中可能存在以下由YOLO检测到的对象：[{yolo_objects_summary}]。\n"
             "请分析图片：\n"
             "1. 给出总体风险评估 (risk_level: '低', '中', '高', 或 '未知')。\n"
             "2. 提供综合文本描述 (description)。\n"
             "3. 判断是否存在特定事件 (specific_events_detected):\n"
-            "   - 'fire' (火焰)\n"
+            "   - 'fighting' (打斗)\n"
             "   - 'fall_down' (人员摔倒)\n"
-            "   - 'fighting' (打架斗殴)\n"
+            "   - 'sudden illness' (突发疾病)\n"
             "--- 分析任务结束，请提供严格的JSON输出 ---"
         )
         
@@ -166,7 +166,7 @@ if __name__ == '__main__':
         else:
             current_script_dir = os.path.dirname(os.path.abspath(__file__))
             project_root_dir = os.path.abspath(os.path.join(current_script_dir, '../../'))
-            test_image_path = os.path.join(project_root_dir, "data", "test_images", "smoke.jpg")
+            test_image_path = os.path.join(project_root_dir, "data", "test_images", "school.jpg")
 
             if not os.path.exists(test_image_path): print(f"测试图片 {test_image_path} 未找到。"); exit()
             test_frame = cv2.imread(test_image_path)
@@ -182,9 +182,9 @@ if __name__ == '__main__':
                 print(f"  风险评级: {analysis_result.risk_level}")
                 print(f"  事件描述: {analysis_result.description}")
                 print(f"  特定事件检测:")
-                print(f"    火焰: Detected={analysis_result.specific_events_detected.fire.detected}, Conf={analysis_result.specific_events_detected.fire.confidence}, Details='{analysis_result.specific_events_detected.fire.details}'")
-                print(f"    摔倒: Detected={analysis_result.specific_events_detected.fall_down.detected}, Conf={analysis_result.specific_events_detected.fall_down.confidence}, Details='{analysis_result.specific_events_detected.fall_down.details}'")
-                print(f"    打架: Detected={analysis_result.specific_events_detected.fighting.detected}, Conf={analysis_result.specific_events_detected.fighting.confidence}, Details='{analysis_result.specific_events_detected.fighting.details}'")
+                print(f"打架: Detected={analysis_result.specific_events_detected.fighting.detected}, Conf={analysis_result.specific_events_detected.fighting.confidence}, Details='{analysis_result.specific_events_detected.fighting.details}'")
+                print(f"摔倒: Detected={analysis_result.specific_events_detected.fall_down.detected}, Conf={analysis_result.specific_events_detected.fall_down.confidence}, Details='{analysis_result.specific_events_detected.fall_down.details}'")
+                print(f"突发疾病: Detected={analysis_result.specific_events_detected.sudden_illness.detected}, Conf={analysis_result.specific_events_detected.sudden_illness.confidence}, Details='{analysis_result.specific_events_detected.sudden_illness.details}'")
                 print("\n  完整JSON输出 (Pydantic V2):"); 
                 print(analysis_result.model_dump_json(indent=2))
                 
